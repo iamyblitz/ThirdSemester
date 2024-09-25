@@ -2,7 +2,7 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lazy", "Lazy\Lazy.csproj", "{C74F942F-5926-4B99-BC9F-DA46686FA9E0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LazyTest", "LazyTest\LazyTest.csproj", "{8A8373A0-01A0-49F3-9ABB-1A458884A8FB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LazyTest", "LazyTest\LazyTests.csproj", "{8A8373A0-01A0-49F3-9ABB-1A458884A8FB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
