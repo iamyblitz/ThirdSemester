@@ -1,4 +1,4 @@
-![Build Status](https://your-ci-service.com/your-project/branch/ParallelMatrixMultiplication/badge.svg)
+![Build Status](https://your-ci-service.com/ThirdSemester/branch/ParallelMatrixMultiplication/badge.svg)
 
 
 # ThirdSemester
