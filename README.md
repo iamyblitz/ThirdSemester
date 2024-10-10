@@ -1,3 +1,4 @@
+[![Build](https://github.com/iamyblitz/ThirdSemester/actions/workflows/ci.yml/badge.svg?branch=MyThreadPool)](https://github.com/iamyblitz/ThirdSemester/actions/workflows/ci.yml)
 # ThirdSemester
 Данный репозиторий предназначен для сдачи домашних заданий по программированию на втором курсе. В третьем семестре используется язык программирования C#, в четвертом семестре - F#. В этом репозитории находятся решения домашних заданий, разработанные в рамках обучения.
 # Сборка и запуск
