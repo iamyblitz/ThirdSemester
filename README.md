@@ -1,4 +1,5 @@
-![Build Status](https://github.com/iamyblitz/SecondCourse/workflows/Build/badge.svg)
+![Build Status](https://your-ci-service.com/your-project/branch/ParallelMatrixMultiplication/badge.svg)
+
 
 # ThirdSemester
 Данный репозиторий предназначен для сдачи домашних заданий по программированию на втором курсе. В третьем семестре используется язык программирования C#, в четвертом семестре - F#. В этом репозитории находятся решения домашних заданий, разработанные в рамках обучения.
