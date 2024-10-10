@@ -1,4 +1,4 @@
-![Build Status](https://your-ci-service.com/your-project/branch/MyThreadPool/badge.svg)
+![Build Status](https://your-ci-service.com/ThirdSemester/branch/MyThreadPool/badge.svg)
 
 # ThirdSemester
 Данный репозиторий предназначен для сдачи домашних заданий по программированию на втором курсе. В третьем семестре используется язык программирования C#, в четвертом семестре - F#. В этом репозитории находятся решения домашних заданий, разработанные в рамках обучения.
