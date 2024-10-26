@@ -4,10 +4,16 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Text;
 
+/// <summary>
+/// Represents a client that connects to an FTP-like server to list directories and download files over TCP.
+/// </summary>
 public class Client(string server, int port) : IDisposable
 {
     private readonly TcpClient tcpClient = new();
 
+    /// <summary>
+    /// Establishes a connection to the server asynchronously if not already connected.
+    /// </summary>
     private async Task ConnectAsync()
     {
         if (!tcpClient.Connected)
@@ -23,6 +29,12 @@ public class Client(string server, int port) : IDisposable
         }
     }
     
+    /// <summary>
+    /// Sends a request to list the contents of a directory on the server.
+    /// Receives and displays the list of files and directories.
+    /// </summary>
+    /// <param name="directory">The path of the directory to list, relative to the server's base directory.</param>
+    /// <returns>A task representing the asynchronous operation of listing the directory.</returns>
     public async Task ListCommand(string directory)
     {
         await ConnectAsync();
@@ -52,6 +64,12 @@ public class Client(string server, int port) : IDisposable
         }
     }
     
+    /// <summary>
+    /// Sends a request to download a file from the server.
+    /// Receives and saves the file to the local directory.
+    /// </summary>
+    /// <param name="directory">The path of the file to download, relative to the server's base directory.</param>
+    /// <returns>A task representing the asynchronous file download operation.</returns>
     public async Task GetCommand(string directory)
     {
         await ConnectAsync();
@@ -89,6 +107,10 @@ public class Client(string server, int port) : IDisposable
         }
     }
     
+    // <summary>
+    /// Releases all resources used by the <see cref="Client"/> class.
+    /// Closes the TCP connection to the server.
+    /// </summary>
     public void Dispose()
     {
         tcpClient?.Close();

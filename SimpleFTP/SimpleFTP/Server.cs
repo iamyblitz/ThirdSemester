@@ -4,10 +4,21 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 
+/// <summary>
+/// Represents an FTP-like server that handles client requests for file listings and file downloads over TCP.
+/// </summary>
 public class Server(int port)
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Server"/> class.
+    /// </summary>
+    /// <param name="port">The port on which the server listens for incoming connections.</param>
     private readonly TcpListener listener = new(IPAddress.Any, port);
-
+    
+    /// <summary>
+    /// Starts the server, allowing it to accept and handle client connections asynchronously.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation of the server.</returns>
     public async Task StartAsync()
     {
         listener.Start();
@@ -18,7 +29,13 @@ public class Server(int port)
             _ = Task.Run(() => HandleClientAsync(client));
         }
     }
-
+    
+    
+    /// <summary>
+    /// Handles an individual client connection asynchronously. Processes commands for listing directory contents
+    /// and retrieving file contents based on client requests.
+    /// </summary>
+    /// <param name="client">The client connection to be handled.</param>
     private static async Task HandleClientAsync(TcpClient client)
     {
         await using NetworkStream stream = client.GetStream();
@@ -61,6 +78,12 @@ public class Server(int port)
         }
     }
 
+    /// <summary>
+    /// Sends a listing of files and directories within the specified path to the client.
+    /// If the directory does not exist, sends a response indicating an error.
+    /// </summary>
+    /// <param name="writer">The writer used to send data to the client.</param>
+    /// <param name="path">The path of the directory to list, relative to the server's base directory.</param>
     private static async Task HandleListCommandAsync(StreamWriter writer, string path)
     {
         if (!Directory.Exists(path))
@@ -82,6 +105,13 @@ public class Server(int port)
         await writer.WriteLineAsync();
     }
     
+    /// <summary>
+    /// Sends the content of the specified file to the client. 
+    /// If the file does not exist, sends a response indicating an error.
+    /// </summary>
+    /// <param name="writer">The writer used to send data to the client.</param>
+    /// <param name="stream">The network stream for sending file data directly to the client.</param>
+    /// <param name="path">The path of the file to retrieve, relative to the server's base directory.</param>
     private static async Task HandleGetCommandAsync(StreamWriter writer, NetworkStream stream, string path)
     {
         if (!File.Exists(path))
