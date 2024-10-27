@@ -3,18 +3,26 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using System.IO;
 
 /// <summary>
 /// Represents an FTP-like server that handles client requests for file listings and file downloads over TCP.
 /// </summary>
-public class Server(int port)
+public class Server
 {
+    private readonly TcpListener listener;
+    private readonly string baseDirectory;
+
     /// <summary>
-    /// Initializes a new instance of the <see cref="Server"/> class.
+    /// Constructor for initialization of listener and baseDirectory.
     /// </summary>
-    /// <param name="port">The port on which the server listens for incoming connections.</param>
-    private readonly TcpListener listener = new(IPAddress.Any, port);
-    
+    /// <param name="port"></param>
+    /// <param name="baseDirectory"></param>
+    public Server(int port, string? baseDirectory = null)
+    {
+        listener = new TcpListener(IPAddress.Any, port);
+        this.baseDirectory = baseDirectory ?? Directory.GetCurrentDirectory();
+    }
     /// <summary>
     /// Starts the server, allowing it to accept and handle client connections asynchronously.
     /// </summary>
