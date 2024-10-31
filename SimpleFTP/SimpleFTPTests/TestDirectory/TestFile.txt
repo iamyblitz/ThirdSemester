@@ -1,2 +1,1 @@
-TestFile Content
-Watch This!!!
+This is a test file.

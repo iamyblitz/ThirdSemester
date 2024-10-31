@@ -1,15 +1,26 @@
 namespace SimpleFTP;
+
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Net.Sockets;
-using System.Threading.Tasks;
 using System.Text;
+using System.Threading.Tasks;
 
 /// <summary>
 /// Represents a client that connects to an FTP-like server to list directories and download files over TCP.
 /// </summary>
-public class Client(string server, int port) : IDisposable
+public class Client : IDisposable
 {
     private readonly TcpClient tcpClient = new();
+    private readonly string server;
+    private readonly int port;
+
+    public Client(string server, int port)
+    {
+        this.server = server;
+        this.port = port;
+    }
 
     /// <summary>
     /// Establishes a connection to the server asynchronously if not already connected.
@@ -28,86 +39,122 @@ public class Client(string server, int port) : IDisposable
             }
         }
     }
-    
+
     /// <summary>
     /// Sends a request to list the contents of a directory on the server.
-    /// Receives and displays the list of files and directories.
+    /// Receives and returns the list of files and directories.
     /// </summary>
     /// <param name="directory">The path of the directory to list, relative to the server's base directory.</param>
     /// <returns>A task representing the asynchronous operation of listing the directory.</returns>
-    public async Task ListCommand(string directory)
+    public async Task<List<(string name, bool isDirectory)>> ListCommand(string directory)
     {
         await ConnectAsync();
 
-        await using var stream = tcpClient.GetStream();
-        await using var writer = new StreamWriter(stream, Encoding.UTF8);
-        writer.AutoFlush = true;
+        using var stream = tcpClient.GetStream();
+        using var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
         using var reader = new StreamReader(stream, Encoding.UTF8);
-        
-        string request = $"1 {directory}\n";
-        await writer.WriteLineAsync(request);
 
-        string? response = await reader.ReadLineAsync();
-        
-        if (response == "size -1")
+        directory = directory.Replace('\\', '/');
+        await writer.WriteLineAsync($"1 {directory}");
+
+        string response = await reader.ReadLineAsync();
+
+        if (string.IsNullOrEmpty(response) || response == "-1")
         {
             Console.WriteLine("Directory doesn't exist.");
+            return new List<(string name, bool isDirectory)>();
         }
-        else
+
+        string[] parts = response.Split(' ');
+        if (!int.TryParse(parts[0], out int count))
         {
-            Console.WriteLine("Files and directories:");
-            Console.WriteLine(response);
-            while (!string.IsNullOrEmpty(response = await reader.ReadLineAsync()))
-            {
-                Console.WriteLine(response);
-            }
+            Console.WriteLine("Invalid response from server.");
+            return new List<(string name, bool isDirectory)>();
         }
+
+        var entries = new List<(string name, bool isDirectory)>();
+
+        for (int i = 1; i < parts.Length; i += 2)
+        {
+            if (i + 1 >= parts.Length)
+            {
+                Console.WriteLine("Invalid response format.");
+                return new List<(string name, bool isDirectory)>();
+            }
+
+            string name = parts[i];
+            bool isDir = parts[i + 1] == "true";
+            entries.Add((name, isDir));
+        }
+
+        return entries;
     }
-    
+
     /// <summary>
     /// Sends a request to download a file from the server.
     /// Receives and saves the file to the local directory.
     /// </summary>
-    /// <param name="directory">The path of the file to download, relative to the server's base directory.</param>
+    /// <param name="filePath">The path of the file to download, relative to the server's base directory.</param>
     /// <returns>A task representing the asynchronous file download operation.</returns>
-    public async Task GetCommand(string directory)
+    public async Task GetCommand(string filePath)
     {
         await ConnectAsync();
 
-        await using var stream = tcpClient.GetStream();
-        await using var writer = new StreamWriter(stream, Encoding.UTF8);
-        writer.AutoFlush = true;
-        using var reader = new StreamReader(stream, Encoding.UTF8);
+        NetworkStream stream = tcpClient.GetStream();
+        using var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
         
-        await writer.WriteLineAsync($"2 {directory}\n");
+        filePath = filePath.Replace('\\', '/');
+        await writer.WriteLineAsync($"2 {filePath}");
         
-        var response = await reader.ReadLineAsync();
-        if (response == "size -1")
+        StringBuilder sizeBuilder = new StringBuilder();
+        byte[] buffer = new byte[1];
+        while (true)
+        {
+            int bytesRead = await stream.ReadAsync(buffer, 0, 1);
+            if (bytesRead == 0)
+            {
+                Console.WriteLine("Connection closed.");
+                return;
+            }
+            char c = (char)buffer[0];
+            if (c == ' ')
+            {
+                break;
+            }
+            sizeBuilder.Append(c);
+        }
+
+        if (!long.TryParse(sizeBuilder.ToString(), out long size))
+        {
+            Console.WriteLine("Invalid response from server.");
+            return;
+        }
+
+        if (size == -1)
         {
             Console.WriteLine("File does not exist.");
+            return;
         }
-        else
+        
+        byte[] fileBuffer = new byte[size];
+        int totalBytesRead = 0;
+        while (totalBytesRead < size)
         {
-            var responseInfo = response?.Split(' ');
-            if (responseInfo[0] == "size")
+            int bytesRead = await stream.ReadAsync(fileBuffer, totalBytesRead, (int)(size - totalBytesRead));
+            if (bytesRead == 0)
             {
-                long size = long.Parse(responseInfo[1]);
-                byte[] buffer = new byte[size];
-
-                var readAsync = await stream.ReadAsync(buffer, 0, (int)size);
-                string fileName = Path.GetFileName(directory);
-                
-                await File.WriteAllBytesAsync(fileName, buffer);
-                Console.WriteLine($"File '{fileName}' has been downloaded ({size} bytes).");
+                Console.WriteLine("Connection closed unexpectedly.");
+                return;
             }
-            else
-            {
-                Console.WriteLine("Unexpected response format.");
-            }
+            totalBytesRead += bytesRead;
         }
+
+        string fileName = Path.GetFileName(filePath);
+        await File.WriteAllBytesAsync(fileName, fileBuffer);
+        Console.WriteLine($"File '{fileName}' downloaded successfully.");
     }
-    
-    // <summary>
+
+    /// <summary>
     /// Releases all resources used by the <see cref="Client"/> class.
     /// Closes the TCP connection to the server.
     /// </summary>
@@ -115,5 +162,5 @@ public class Client(string server, int port) : IDisposable
     {
         tcpClient?.Close();
     }
-    
 }
+

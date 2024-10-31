@@ -1,28 +1,33 @@
 namespace SimpleFTP;
+
 using System;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading.Tasks;
-using System.IO;
 
 /// <summary>
 /// Represents an FTP-like server that handles client requests for file listings and file downloads over TCP.
 /// </summary>
 public class Server
 {
-    private readonly TcpListener listener;
+    private readonly int port;
     private readonly string baseDirectory;
+    private readonly TcpListener listener;
 
     /// <summary>
-    /// Constructor for initialization of listener and baseDirectory.
+    /// Initializes a new instance of the <see cref="Server"/> class.
     /// </summary>
-    /// <param name="port"></param>
-    /// <param name="baseDirectory"></param>
-    public Server(int port, string? baseDirectory = null)
+    /// <param name="port">The port on which the server listens for incoming connections.</param>
+    /// <param name="baseDirectory">The base directory for file operations.</param>
+    public Server(int port, string baseDirectory)
     {
+        this.port = port;
+        this.baseDirectory = baseDirectory;
         listener = new TcpListener(IPAddress.Any, port);
-        this.baseDirectory = baseDirectory ?? Directory.GetCurrentDirectory();
     }
+
     /// <summary>
     /// Starts the server, allowing it to accept and handle client connections asynchronously.
     /// </summary>
@@ -37,39 +42,38 @@ public class Server
             _ = Task.Run(() => HandleClientAsync(client));
         }
     }
-    
-    
+
     /// <summary>
     /// Handles an individual client connection asynchronously. Processes commands for listing directory contents
     /// and retrieving file contents based on client requests.
     /// </summary>
     /// <param name="client">The client connection to be handled.</param>
-    private static async Task HandleClientAsync(TcpClient client)
+    private async Task HandleClientAsync(TcpClient client)
     {
-        await using NetworkStream stream = client.GetStream();
-        using var reader = new StreamReader(stream);
-        await using var writer = new StreamWriter(stream);
-        writer.AutoFlush = true;
-
         try
         {
+            NetworkStream stream = client.GetStream();
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+
             var request = await reader.ReadLineAsync();
+            
             if (string.IsNullOrWhiteSpace(request))
-                return;
-            
+                throw new InvalidOperationException("Received an empty request from client.");
+
             var parts = request.Split(' ', 2);
-            if (parts.Length < 2) return;
-            
+            if (parts.Length < 2)
+                throw new InvalidOperationException("Request does not contain a valid command and path.");
+
             string command = parts[0];
             string path = parts[1].Trim();
 
             switch (command)
             {
                 case "1":
-                    await HandleListCommandAsync(writer, path);
+                    await HandleListCommandAsync(stream, path);
                     break;
                 case "2":
-                    await HandleGetCommandAsync(writer, stream, path);
+                    await HandleGetCommandAsync(stream, path);
                     break;
                 default:
                     Console.WriteLine("Invalid command received.");
@@ -78,7 +82,7 @@ public class Server
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Problem processing the client: {ex.Message}");
+            Console.WriteLine($"Problem processing the request: {ex.Message}");
         }
         finally
         {
@@ -90,47 +94,60 @@ public class Server
     /// Sends a listing of files and directories within the specified path to the client.
     /// If the directory does not exist, sends a response indicating an error.
     /// </summary>
-    /// <param name="writer">The writer used to send data to the client.</param>
+    /// <param name="stream">The network stream to send data to the client.</param>
     /// <param name="path">The path of the directory to list, relative to the server's base directory.</param>
-    private static async Task HandleListCommandAsync(StreamWriter writer, string path)
+    private async Task HandleListCommandAsync(NetworkStream stream, string path)
     {
-        if (!Directory.Exists(path))
+        using var writer = new StreamWriter(stream, Encoding.UTF8);
+        
+        var fullPath = path.Replace('/', Path.DirectorySeparatorChar);
+
+        
+        if (!Directory.Exists(fullPath))
         {
-            await writer.WriteLineAsync("size -1");
+            await writer.WriteLineAsync("-1\n");
+            await writer.FlushAsync();
             return;
         }
-       
-        var entries = Directory.GetFileSystemEntries(path);
-        string response = $"size {entries.Length}";
+        
+        var entries = Directory.GetFileSystemEntries(fullPath);
+        StringBuilder response = new StringBuilder();
+        response.Append(entries.Length);
 
         foreach (var entry in entries)
         {
             var name = Path.GetFileName(entry);
             var isDir = Directory.Exists(entry) ? "true" : "false";
-            response += $" {name} {isDir}";
+            response.Append($" {name} {isDir}");
         }
-        await writer.WriteAsync(response);
-        await writer.WriteLineAsync();
+        response.Append("\n");
+        await writer.WriteLineAsync(response.ToString());
+        await writer.FlushAsync();
     }
-    
+
     /// <summary>
     /// Sends the content of the specified file to the client. 
     /// If the file does not exist, sends a response indicating an error.
     /// </summary>
-    /// <param name="writer">The writer used to send data to the client.</param>
-    /// <param name="stream">The network stream for sending file data directly to the client.</param>
+    /// <param name="stream">The network stream for sending data directly to the client.</param>
     /// <param name="path">The path of the file to retrieve, relative to the server's base directory.</param>
-    private static async Task HandleGetCommandAsync(StreamWriter writer, NetworkStream stream, string path)
+    private async Task HandleGetCommandAsync(NetworkStream stream, string path)
     {
-        if (!File.Exists(path))
+        using var writer = new StreamWriter(stream, Encoding.UTF8);
+        
+        var fullPath = path.Replace('/', Path.DirectorySeparatorChar);
+        if (!File.Exists(fullPath))
         {
-            await writer.WriteLineAsync("size -1");
+            await writer.WriteLineAsync("-1\n");
+            await writer.FlushAsync();
             return;
         }
-       
-        var fileBytes = await File.ReadAllBytesAsync(path);
-        await writer.WriteLineAsync($"size {fileBytes.Length}");
+        
+        var fileBytes = await File.ReadAllBytesAsync(fullPath);
+        byte[] sizeBytes = Encoding.ASCII.GetBytes($"{fileBytes.Length} ");
+        await stream.WriteAsync(sizeBytes, 0, sizeBytes.Length);
         await stream.WriteAsync(fileBytes, 0, fileBytes.Length);
         await stream.FlushAsync();
     }
 }
+
