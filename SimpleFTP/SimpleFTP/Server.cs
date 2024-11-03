@@ -22,8 +22,10 @@ public class Server
     public Server(int port, string? baseDirectory = null)
     {
         listener = new TcpListener(IPAddress.Any, port);
-        this.baseDirectory = baseDirectory ?? Directory.GetCurrentDirectory();
+        Console.WriteLine("basedir" + baseDirectory);
+        this.baseDirectory = baseDirectory;
     }
+    
     /// <summary>
     /// Starts the server, allowing it to accept and handle client connections asynchronously.
     /// </summary>
@@ -35,9 +37,11 @@ public class Server
         {
             while (isRunning)
             {
+                
                 var client = await listener.AcceptTcpClientAsync();
                 _ = Task.Run(() => HandleClientAsync(client));
             }
+            
         }
         catch (ObjectDisposedException)
         {
@@ -60,20 +64,19 @@ public class Server
     {
         await using NetworkStream stream = client.GetStream();
         using var reader = new StreamReader(stream);
-        await using var writer = new StreamWriter(stream);
-        writer.AutoFlush = true;
-
+        await using var writer = new StreamWriter(stream) { AutoFlush = true };
+       
         try
         {
             var request = await reader.ReadLineAsync();
             if (string.IsNullOrWhiteSpace(request))
                 return;
             
-            var parts = request.Split(' ', 2);
-            
+            var parts = request.Split(' ');
+           
             string command = parts[0];
             string path = parts[1].Trim();
-
+            
             switch (command)
             {
                 case "1":
@@ -104,20 +107,26 @@ public class Server
     /// <param name="writer">The writer used to send data to the client.</param>
     /// <param name="path">The path of the directory to list, relative to the server's base directory.</param>
     private async Task HandleListCommandAsync(StreamWriter writer, string path)
-    {   string fullPath = Path.Combine(baseDirectory, path);
+    {   
+        string fullPath = Path.Combine(baseDirectory, path);
+        
+        
         if (!Directory.Exists(fullPath))
         {
-            await writer.WriteLineAsync("-1\n");
+            await writer.WriteLineAsync("-1");
             return;
         }
        
         var entries = Directory.GetFileSystemEntries(fullPath);
-        string response = $"size {entries.Length}";
-
+        string response = $"{entries.Length}";
+       
+        await writer.WriteLineAsync(response);
+        
         foreach (var entry in entries)
         {
             var name = Path.GetFileName(entry);
             var isDir = Directory.Exists(entry) ? "true" : "false";
+            
             await writer.WriteLineAsync($"{name} {isDir}");
         }
     }
@@ -132,6 +141,7 @@ public class Server
     private async Task HandleGetCommandAsync(StreamWriter writer, NetworkStream stream, string path)
     {
         string fullPath = Path.Combine(baseDirectory, path);
+        Console.WriteLine(path);
         if (!File.Exists(fullPath))
         {
             await writer.WriteLineAsync("-1\n");
@@ -139,9 +149,8 @@ public class Server
         }
        
         var fileBytes = await File.ReadAllBytesAsync(fullPath);
-        await writer.WriteLineAsync($"size {fileBytes.Length}");
+        await writer.WriteLineAsync($"{fileBytes.Length}");
         await stream.WriteAsync(fileBytes, 0, fileBytes.Length);
-        await stream.FlushAsync();
     }
     
     /// <summary>
@@ -150,6 +159,5 @@ public class Server
     public void Stop()
     {
         isRunning = false;
-        listener.Stop();
     }
 }

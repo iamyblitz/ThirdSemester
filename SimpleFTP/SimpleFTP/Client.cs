@@ -7,14 +7,13 @@ using System.Text;
 /// <summary>
 /// Represents a client that connects to an FTP-like server to list directories and download files over TCP.
 /// </summary>
-public class Client(string server, int port) : IDisposable
+public class Client(string server, int port)
 {
-    private readonly TcpClient tcpClient = new();
 
     /// <summary>
     /// Establishes a connection to the server asynchronously if not already connected.
     /// </summary>
-    private async Task ConnectAsync()
+    private async Task ConnectAsync(TcpClient tcpClient)
     {
         if (!tcpClient.Connected)
         {
@@ -37,16 +36,15 @@ public class Client(string server, int port) : IDisposable
     /// <returns>A task representing the asynchronous operation of listing the directory.</returns>
     public async Task<String?> ListCommandAsync(string directory)
     {
-        using TcpClient client = new TcpClient();
-        await ConnectAsync();
+        using TcpClient tcpClient = new TcpClient();
+        await ConnectAsync(tcpClient);
 
         await using var stream = tcpClient.GetStream();
-        await using var writer = new StreamWriter(stream, Encoding.UTF8);
+        await using var writer = new StreamWriter(stream, Encoding.UTF8)  { AutoFlush = true };
         using var reader = new StreamReader(stream, Encoding.UTF8);
         
-        string request = $"1 {directory}\n";
+        string request = $"1 {directory}";
         await writer.WriteLineAsync(request);
-        await writer.FlushAsync();
 
         string? response = await reader.ReadLineAsync();
         
@@ -72,41 +70,45 @@ public class Client(string server, int port) : IDisposable
     /// <returns>A task representing the asynchronous file download operation.</returns>
     public async Task<String?> GetCommandAsync(string directory)
     {   
-        using TcpClient client = new TcpClient();
-        await ConnectAsync();
+        using TcpClient tcpClient = new TcpClient();
+        await ConnectAsync(tcpClient);
 
         await using var stream = tcpClient.GetStream();
-        await using var writer = new StreamWriter(stream, Encoding.UTF8);
+        await using var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
         using var reader = new StreamReader(stream, Encoding.UTF8);
         
-        await writer.WriteLineAsync($"2 {directory}\n");
+        await writer.WriteLineAsync($"2 {directory}");
         
         var response = await reader.ReadLineAsync();
         if (response == "-1")
         {
             return "File does not exist.";
         }
-        string? sizeLine = await reader.ReadLineAsync();
-        long.TryParse(sizeLine, out long contentSize);
+        if (!long.TryParse(response, out long contentSize))
+        {
+            throw new Exception($"Invalid response from server: {response}");
+        }
+        Console.WriteLine("responce:" + response);
+        
         
         byte[] contentBytes = new byte[contentSize];
         int bytesRead = 0;
+        Console.WriteLine(contentBytes.Length);
+        
         while (bytesRead < contentSize)
         {
             int read = await stream.ReadAsync(contentBytes, bytesRead, (int)(contentSize - bytesRead));
+    
+            if (read == 0) 
+            {
+                throw new Exception("Unexpected end of stream or server closed the connection prematurely.");
+            }
+    
             bytesRead += read;
+            Console.WriteLine($"Bytes read so far: {bytesRead}/{contentSize}");
         }
         
         return Encoding.UTF8.GetString(contentBytes);
-    }
-    
-    // <summary>
-    /// Releases all resources used by the <see cref="Client"/> class.
-    /// Closes the TCP connection to the server.
-    /// </summary>
-    public void Dispose()
-    {
-        tcpClient?.Close();
     }
     
 }
