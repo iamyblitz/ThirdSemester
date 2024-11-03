@@ -35,33 +35,33 @@ public class Client(string server, int port) : IDisposable
     /// </summary>
     /// <param name="directory">The path of the directory to list, relative to the server's base directory.</param>
     /// <returns>A task representing the asynchronous operation of listing the directory.</returns>
-    public async Task ListCommand(string directory)
+    public async Task<String?> ListCommandAsync(string directory)
     {
+        using TcpClient client = new TcpClient();
         await ConnectAsync();
 
         await using var stream = tcpClient.GetStream();
         await using var writer = new StreamWriter(stream, Encoding.UTF8);
-        writer.AutoFlush = true;
         using var reader = new StreamReader(stream, Encoding.UTF8);
         
         string request = $"1 {directory}\n";
         await writer.WriteLineAsync(request);
+        await writer.FlushAsync();
 
         string? response = await reader.ReadLineAsync();
         
-        if (response == "size -1")
+        if (response == "-1")
         {
-            Console.WriteLine("Directory doesn't exist.");
+            return "Directory doesn't exist.";
         }
-        else
+        StringBuilder resultBuilder = new StringBuilder();
+        int.TryParse(response, out int entriesCount);
+        for (int i = 0; i < entriesCount; i++)
         {
-            Console.WriteLine("Files and directories:");
-            Console.WriteLine(response);
-            while (!string.IsNullOrEmpty(response = await reader.ReadLineAsync()))
-            {
-                Console.WriteLine(response);
-            }
+            string? entryLine = await reader.ReadLineAsync();
+            resultBuilder.AppendLine(entryLine);
         }
+        return resultBuilder.ToString();
     }
     
     /// <summary>
@@ -70,41 +70,34 @@ public class Client(string server, int port) : IDisposable
     /// </summary>
     /// <param name="directory">The path of the file to download, relative to the server's base directory.</param>
     /// <returns>A task representing the asynchronous file download operation.</returns>
-    public async Task GetCommand(string directory)
-    {
+    public async Task<String?> GetCommandAsync(string directory)
+    {   
+        using TcpClient client = new TcpClient();
         await ConnectAsync();
 
         await using var stream = tcpClient.GetStream();
         await using var writer = new StreamWriter(stream, Encoding.UTF8);
-        writer.AutoFlush = true;
         using var reader = new StreamReader(stream, Encoding.UTF8);
         
         await writer.WriteLineAsync($"2 {directory}\n");
         
         var response = await reader.ReadLineAsync();
-        if (response == "size -1")
+        if (response == "-1")
         {
-            Console.WriteLine("File does not exist.");
+            return "File does not exist.";
         }
-        else
+        string? sizeLine = await reader.ReadLineAsync();
+        long.TryParse(sizeLine, out long contentSize);
+        
+        byte[] contentBytes = new byte[contentSize];
+        int bytesRead = 0;
+        while (bytesRead < contentSize)
         {
-            var responseInfo = response?.Split(' ');
-            if (responseInfo[0] == "size")
-            {
-                long size = long.Parse(responseInfo[1]);
-                byte[] buffer = new byte[size];
-
-                var readAsync = await stream.ReadAsync(buffer, 0, (int)size);
-                string fileName = Path.GetFileName(directory);
-                
-                await File.WriteAllBytesAsync(fileName, buffer);
-                Console.WriteLine($"File '{fileName}' has been downloaded ({size} bytes).");
-            }
-            else
-            {
-                Console.WriteLine("Unexpected response format.");
-            }
+            int read = await stream.ReadAsync(contentBytes, bytesRead, (int)(contentSize - bytesRead));
+            bytesRead += read;
         }
+        
+        return Encoding.UTF8.GetString(contentBytes);
     }
     
     // <summary>

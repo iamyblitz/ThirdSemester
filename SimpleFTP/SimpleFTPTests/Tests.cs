@@ -7,13 +7,14 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
-[TestFixture]
-public class Tests
+
+public class ServerClientTests
 {
-    private Server? _server;
-    private Task? _serverTask;
-    private const int TestPort = 8888;
+    private const int TestPort = 12345;
     private readonly string testDirectory = Path.Combine(Directory.GetCurrentDirectory(), "TestDirectory");
+    private Server _server;
+    private Task _serverTask;
+    private Client _client;
 
     [SetUp]
     public void Setup()
@@ -29,76 +30,49 @@ public class Tests
             File.WriteAllText(Path.Combine(testDirectory, "subDir2", "TestFile2.txt"), "This is a test file in subDir2.");
         }
 
+       
         _server = new Server(TestPort, testDirectory);
-        _serverTask = Task.Run(async () => await _server.StartAsync());
+        _serverTask = Task.Run(() => _server.StartAsync());
+       
+        _client = new Client("localhost", TestPort);
     }
 
     [TearDown]
     public void TearDown()
     {
-        _server = null;
-        _serverTask = null;
+        _server.Stop();
+        _serverTask.Wait();
+        _client.Dispose();
     }
 
     [Test]
-    public async Task TestListCommandAsync()
+    public async Task TestDirectoryListing()
     {
-        using var client = new Client("127.0.0.1", TestPort);
-        await client.ListCommand("");
-        Assert.Pass();
+        string response = await _client.ListCommandAsync(""); 
+        Assert.IsTrue(response.Contains("TestFile.txt"));
+        Assert.IsTrue(response.Contains("subDir1"));
+        Assert.IsTrue(response.Contains("subDir2"));
     }
 
     [Test]
-    public async Task TestGetCommandAsync_FileExists()
+    public async Task TestFileRetrieval()
     {
-        using var client = new Client("127.0.0.1", TestPort);
-        string filePath = "subDir1/TestFile1.txt";
-        string expectedFilePath = Path.GetFileName(filePath);
-        
-        await client.GetCommand(filePath);
-        
-        Assert.IsTrue(File.Exists(expectedFilePath));
-        
-        if (File.Exists(expectedFilePath))
-        {
-            File.Delete(expectedFilePath);
-        }
+        string response = await _client.GetCommandAsync("TestFile.txt"); // Relative path
+        Assert.IsTrue(response.Contains("This is a test file."));
     }
 
     [Test]
-    public async Task TestGetCommandAsync_FileDoesNotExist()
+    public async Task TestInvalidDirectory()
     {
-        using var client = new Client("127.0.0.1", TestPort);
-        string nonExistentFilePath = "nonExistentFile.txt";
-        
-        try
-        {
-            await client.GetCommand(nonExistentFilePath);
-            Assert.Fail();
-        }
-        catch (Exception ex)
-        {
-            Assert.IsTrue(ex.Message.Contains("File does not exist"));
-        }
+        string response = await _client.ListCommandAsync("NonExistentDir");
+        Assert.AreEqual("Directory doesn't exist.", response);
     }
 
     [Test]
-    public async Task TestGetCommandAsync_FileContentMatches()
+    public async Task TestInvalidFile()
     {
-        using var client = new Client("127.0.0.1", TestPort);
-        string filePath = "subDir1/TestFile1.txt";
-        string expectedFilePath = Path.GetFileName(filePath);
-        string expectedContent = "This is a test file in subDir1.";
-        
-        await client.GetCommand(filePath);
-        
-        Assert.IsTrue(File.Exists(expectedFilePath));
-        string actualContent = File.ReadAllText(expectedFilePath);
-        Assert.That(actualContent, Is.EqualTo(expectedContent));
-        
-        if (File.Exists(expectedFilePath))
-        {
-            File.Delete(expectedFilePath);
-        }
+        string response = await _client.GetCommandAsync("NonExistentFile.txt");
+        Assert.AreEqual("File does not exist.", response);
     }
+
 }
