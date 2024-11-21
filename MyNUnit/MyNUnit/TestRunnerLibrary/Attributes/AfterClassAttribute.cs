@@ -1,7 +1,7 @@
 namespace MyNUnit.TestRunnerLibrary.Attributes;
 
 [AttributeUsage(AttributeTargets.Method)]
-public class AfterClassAttribute
+public class AfterClassAttribute: Attribute
 {
     
 }
