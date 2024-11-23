@@ -1,3 +1,18 @@
-﻿// See https://aka.ms/new-console-template for more information
+﻿using System;
+using MyNUnit.TestRunnerLibrary.Core;
+class Program
+{
+    static void Main(string[] args)
+    {
+        Console.WriteLine("Укажите путь к сборкам.");
+       
+        
 
-Console.WriteLine("Hello, World!");
+        var path = Console.ReadLine();
+        var testRunner = new TestRunner();
+        var results = testRunner.RunTests(path);
+
+        var reportGenerator = new ReportGenerator();
+        reportGenerator.PrintReport(results);
+    }
+}
