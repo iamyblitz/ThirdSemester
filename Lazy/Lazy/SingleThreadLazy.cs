@@ -3,6 +3,7 @@
 // </copyright>
 
 namespace Lazy;
+
 /// <summary>
 /// A lazy evaluation implementation for single-threaded environments.
 /// The value is computed only once during the first call to Get.
@@ -20,9 +21,7 @@ public class SingleThreadLazy<T>: ILazy<T>
     /// <param name="supplier"></param>
     /// <exception cref="ArgumentNullException"></exception>
     public SingleThreadLazy(Func<T> supplier)
-    {
-        _supplier = supplier ?? throw new ArgumentNullException(nameof(supplier));
-    }
+        => _supplier = supplier ?? throw new ArgumentNullException(nameof(supplier));
 
     /// <summary>
     /// Returns the computed value. The computation occurs only on the first call.
