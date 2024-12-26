@@ -1,57 +1,56 @@
+/*
+ * Program Name: [ParallelMatrixMultiplication]
+ * Author: [Yana]
+ * License: MIT
+ * Copyright (c) [2024] [Yana]
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software to deal in the Software without restriction, subject to
+ * the MIT License. See LICENSE file for details.
+ */
 namespace ParallelMatrixMultiplication;
 
 public class Matrix
 {
     private readonly int[,] _matrixArray;
-    private readonly int _numOfRows;
-    private readonly int _numOfCols;
 
-    //constructor
     public Matrix(string filepath)
     {
-        _matrixArray = convertFileToMatrix(filepath);
-        _numOfRows = _matrixArray.GetLength(0);
-        _numOfCols = _matrixArray.GetLength(1);
-        
+        _matrixArray = ConvertFileToMatrix(filepath);
     }
-    
+
     public Matrix(int numOfRows, int numOfCols)
     {
         _matrixArray = new int[numOfRows, numOfCols];
-        _numOfRows = numOfRows;
-        _numOfCols = numOfCols;
-        
     }
-    
+
+    public Matrix(int[,] matrixArray)
+    {
+        _matrixArray = matrixArray;
+    }
+
     //indexer
     public int this[int _numOfRows, int _numOfCols ]
     {
-        get { return _matrixArray[_numOfRows, _numOfCols]; }
-        set { _matrixArray[_numOfRows, _numOfCols] = value; }
+        get => _matrixArray[_numOfRows, _numOfCols];
+        set => _matrixArray[_numOfRows, _numOfCols] = value;
     }
     
     //properties
-    public int NumOfRows => _numOfRows;
-    public int NumOfCols => _numOfCols;
+    public int NumOfRows => _matrixArray.GetLength(0);
+    public int NumOfCols => _matrixArray.GetLength(1);
     
-    private int[,] convertFileToMatrix(string filepath)
+    private int[,] ConvertFileToMatrix(string filepath)
     {
-       
         string[] lines = File.ReadAllLines(filepath);
 
         if (lines.Length == 0)
         {
-            throw new ArgumentException("The file path is empty.");
+            throw new ArgumentException("The file is empty."); 
         }
-        
-       
         int numOfRows = lines.Length;
         int numOfCols = lines[0].Split(' ').Length;
-
-        
-        int[,] matrix = new int[numOfRows, numOfCols];
-
-        
+        var matrix = new int[numOfRows, numOfCols];
         for (int i = 0; i < numOfRows; i++)
         {
             string[] elements = lines[i].Split(' ');
@@ -72,16 +71,21 @@ public class Matrix
 
     internal Matrix TransposeMatrix()
     {
-        Matrix transMatrix = new Matrix(_numOfRows, _numOfCols);
-        for (int i = 0; i < _numOfRows; i++)
+        Matrix transposeMatrix = new(NumOfRows, NumOfCols);
+        for (int i = 0; i < NumOfRows; i++)
         {
-            for (int j = 0; j < _numOfCols; j++)
+            for (int j = 0; j < NumOfCols; j++)
             {
-                transMatrix[j, i] = _matrixArray[i, j];
+                transposeMatrix[j, i] = _matrixArray[i, j];
             }
         }
+        return transposeMatrix;
+    }
 
-        return transMatrix;
-        
+    public class InvalidBlockSizeException : Exception
+    {
+        public InvalidBlockSizeException(string message) : base(message)
+        {
+        }
     }
 }
