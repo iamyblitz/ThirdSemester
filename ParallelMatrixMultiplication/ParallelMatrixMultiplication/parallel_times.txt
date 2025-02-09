@@ -1,0 +1,5 @@
+Parallel execution time: 1165.1519 ms
+Parallel execution time: 1159.4277 ms
+Parallel execution time: 1171.1127 ms
+Parallel execution time: 1180.183 ms
+Parallel execution time: 1176.7784 ms

@@ -7,8 +7,8 @@ class Program
 {
     static void Main(string[] args)
     {
-        string testMatrixAPath = "matrixA.txt";
-        string testMatrixBPath = "matrixB.txt";
+        string testMatrixAPath = "MatrixA.txt";
+        string testMatrixBPath = "MatrixB.txt";
         string testResultsPath = "results.txt";
 
         var timeMeasurement = new TimeMeasurement();
@@ -34,7 +34,7 @@ public class TimeMeasurement
         stopwatch.Stop();
         TimeSpan sequentialTime = stopwatch.Elapsed;
 
-        string logPath = testResultsPath + "sequential_times.txt";
+        string logPath = "sequential_times.txt";
         File.AppendAllText(logPath, $"Sequential execution time: {sequentialTime.TotalMilliseconds} ms{Environment.NewLine}");
     }
 
@@ -51,7 +51,7 @@ public class TimeMeasurement
         stopwatch.Stop();
         TimeSpan parallelTime = stopwatch.Elapsed;
 
-        string logPath = testResultsPath + "parallel_times.txt";
+        string logPath = "parallel_times.txt";
         File.AppendAllText(logPath, $"Parallel execution time: {parallelTime.TotalMilliseconds} ms{Environment.NewLine}");
     }
 }
