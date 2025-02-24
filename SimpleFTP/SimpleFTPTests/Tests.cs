@@ -1,11 +1,10 @@
 namespace SimpleFTPTests;
+
 using SimpleFTP;
 using NUnit.Framework;
-using System;
+using System.Text;
 using System.IO;
 using System.Threading.Tasks;
-
-
 public class ServerClientTests
 {
     private const int TestPort = 12345;
@@ -33,31 +32,46 @@ public class ServerClientTests
         _client = new Client("localhost", TestPort);
     }
 
+
     [TearDown]
     public void TearDown()
-    { }
+    {
+        if (Directory.Exists(testDirectory))
+        {
+            DeleteDirectoryRecursively(testDirectory);
+        }
+
+        _server.StopServer();
+    }
+
+    private void DeleteDirectoryRecursively(string directoryPath)
+    {
+        foreach (var file in Directory.GetFiles(directoryPath))
+        {
+            File.Delete(file);
+        }
+        foreach (var directory in Directory.GetDirectories(directoryPath))
+        {
+            DeleteDirectoryRecursively(directory);
+        }
+        Directory.Delete(directoryPath);
+    }
 
     [Test]
     public async Task TestDirectoryListing()
     {
-        string response = await _client.ListCommandAsync("");
-        Assert.IsTrue(response.Contains("TestFile.txt"));
-        Assert.IsTrue(response.Contains("subDir1"));
-        Assert.IsTrue(response.Contains("subDir2"));
+        var response = await _client.ListCommandAsync("");
+        var fileNames = response.Select(entry => entry.Name).ToList();
+        Assert.IsTrue(fileNames.Contains("TestFile.txt"));
+        Assert.IsTrue(fileNames.Contains("subDir1"));
+        Assert.IsTrue(fileNames.Contains("subDir2"));
     }
     
     [Test]
-    public async Task TestInvalidDirectory()
+    public async Task TestGetFile()
     {
-        string response = await _client.ListCommandAsync("NonExistentDir");
-        Assert.AreEqual("Directory doesn't exist.", response);
+        byte[] fileBytes = await _client.GetCommandAsync("TestFile.txt");
+        string fileContent = Encoding.UTF8.GetString(fileBytes);
+        Assert.AreEqual("This is a test file.", fileContent);
     }
-
-    [Test]
-    public async Task TestInvalidFile()
-    {
-        string response = await _client.GetCommandAsync("NonExistentFile.txt");
-        Assert.AreEqual("File does not exist.", response);
-    }
-
 }

@@ -13,19 +13,18 @@ public class Server
     private readonly TcpListener listener;
     private readonly string baseDirectory;
     private bool isRunning = true;
+    private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
 
     /// <summary>
     /// Constructor for initialization of listener and baseDirectory.
     /// </summary>
-    /// <param name="port"></param>
-    /// <param name="baseDirectory"></param>
     public Server(int port, string? baseDirectory = null)
     {
         listener = new TcpListener(IPAddress.Any, port);
-        Console.WriteLine("basedir" + baseDirectory);
-        this.baseDirectory = baseDirectory;
+        Console.WriteLine("basedir:" + baseDirectory);
+        this.baseDirectory = baseDirectory ?? Environment.CurrentDirectory;
     }
-    
+
     /// <summary>
     /// Starts the server, allowing it to accept and handle client connections asynchronously.
     /// </summary>
@@ -37,15 +36,13 @@ public class Server
         {
             while (isRunning)
             {
-                
                 var client = await listener.AcceptTcpClientAsync();
-                _ = Task.Run(() => HandleClientAsync(client));
+                _ = Task.Run(() => HandleClientAsync(client, _cancellationTokenSource.Token));
             }
-            
         }
         catch (ObjectDisposedException)
         {
-            Console.WriteLine("Server stopped due to listener assasitation.");
+            Console.WriteLine("Server stopped due to listener death.");
         }
         finally
         {
@@ -53,50 +50,50 @@ public class Server
             Console.WriteLine("Server stopped.");
         }
     }
-    
-    
+
     /// <summary>
     /// Handles an individual client connection asynchronously. Processes commands for listing directory contents
     /// and retrieving file contents based on client requests.
     /// </summary>
-    /// <param name="client">The client connection to be handled.</param>
-    private async Task HandleClientAsync(TcpClient client)
+    private async Task HandleClientAsync(TcpClient client, CancellationToken cancellationToken)
     {
-        await using NetworkStream stream = client.GetStream();
-        using var reader = new StreamReader(stream);
-        await using var writer = new StreamWriter(stream) { AutoFlush = true };
-       
-        try
+        using (client)
         {
-            var request = await reader.ReadLineAsync();
-            if (string.IsNullOrWhiteSpace(request))
-                return;
-            
-            var parts = request.Split(' ');
-           
-            string command = parts[0];
-            string path = parts[1].Trim();
-            
-            switch (command)
+            await using NetworkStream stream = client.GetStream();
+            using var reader = new StreamReader(stream);
+            await using var writer = new StreamWriter(stream) { AutoFlush = true };
+
+            while (!cancellationToken.IsCancellationRequested)
             {
-                case "1":
-                    await HandleListCommandAsync(writer, path);
-                    break;
-                case "2":
-                    await HandleGetCommandAsync(writer, stream, path);
-                    break;
-                default:
-                    Console.WriteLine("Invalid command received.");
-                    break;
+                try
+                {
+                    var request = await reader.ReadLineAsync();
+                    if (string.IsNullOrWhiteSpace(request))
+                        return;
+
+                    var parts = request.Split(' ');
+
+                    string command = parts[0];
+                    string path = parts[1].Trim();
+
+                    switch (command)
+                    {
+                        case "1":
+                            await HandleListCommandAsync(writer, path);
+                            break;
+                        case "2":
+                            await HandleGetCommandAsync(writer, stream, path);
+                            break;
+                        default:
+                            Console.WriteLine("Invalid command received.");
+                            break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Problem processing the client: {ex.Message}");
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Problem processing the client: {ex.Message}");
-        }
-        finally
-        {
-            client.Close();
         }
     }
 
@@ -104,40 +101,30 @@ public class Server
     /// Sends a listing of files and directories within the specified path to the client.
     /// If the directory does not exist, sends a response indicating an error.
     /// </summary>
-    /// <param name="writer">The writer used to send data to the client.</param>
-    /// <param name="path">The path of the directory to list, relative to the server's base directory.</param>
     private async Task HandleListCommandAsync(StreamWriter writer, string path)
-    {   
+    {
         string fullPath = Path.Combine(baseDirectory, path);
-        
-        
         if (!Directory.Exists(fullPath))
         {
             await writer.WriteLineAsync("-1");
             return;
         }
-       
+
         var entries = Directory.GetFileSystemEntries(fullPath);
         string response = $"{entries.Length}";
-       
         await writer.WriteLineAsync(response);
-        
         foreach (var entry in entries)
         {
             var name = Path.GetFileName(entry);
             var isDir = Directory.Exists(entry) ? "true" : "false";
-            
             await writer.WriteLineAsync($"{name} {isDir}");
         }
     }
-    
+
     /// <summary>
     /// Sends the content of the specified file to the client. 
     /// If the file does not exist, sends a response indicating an error.
     /// </summary>
-    /// <param name="writer">The writer used to send data to the client.</param>
-    /// <param name="stream">The network stream for sending file data directly to the client.</param>
-    /// <param name=" path of the file to retrieve, relative to the server's base directory.</param>
     private async Task HandleGetCommandAsync(StreamWriter writer, NetworkStream stream, string path)
     {
         string fullPath = Path.Combine(baseDirectory, path);
@@ -147,17 +134,19 @@ public class Server
             await writer.WriteLineAsync("-1\n");
             return;
         }
-       
+
         var fileBytes = await File.ReadAllBytesAsync(fullPath);
         await writer.WriteLineAsync($"{fileBytes.Length}");
         await stream.WriteAsync(fileBytes, 0, fileBytes.Length);
     }
-    
+
     /// <summary>
     /// Stops the server.
     /// </summary>
-    public void Stop()
+    public void StopServer()
     {
+        _cancellationTokenSource.Cancel();
+        listener.Stop();
         isRunning = false;
     }
 }
