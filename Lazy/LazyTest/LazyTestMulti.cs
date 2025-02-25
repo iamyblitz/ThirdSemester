@@ -4,7 +4,6 @@ namespace Lazy;
 /// Contains tests for multi-threaded lazy evaluation implementations.
 /// Ensures thread-safe lazy computation and tests for potential race conditions.
 /// </summary>
-[TestFixture]
 public class MultiThreadLazyTests
 {
     /// <summary>

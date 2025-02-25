@@ -4,7 +4,6 @@ namespace Lazy;
 /// Contains tests for single-threaded and multi-threaded lazy evaluation implementations.
 /// Tests both correct and incorrect behaviors of lazy computation in various environments.
 /// </summary>
-[TestFixture]
 public class SingleThreadLazyTests
 {
     /// <summary>
