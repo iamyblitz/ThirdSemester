@@ -74,29 +74,154 @@ public class MyThreadPoolTests
     }
     
     [Test]
-    public void ThreadCountTest()
+    public void ConcurrentSubmitTest()
     {
-        int threadCount = 3;
-        var pool = new MyThreadPool(threadCount);
+        const int taskCount = 50;
+        var pool = new MyThreadPool(4);
+        IMyTask<int>[] tasks = new IMyTask<int>[taskCount];
 
-        int runningThreads = 0;
-        var resetEvent = new ManualResetEvent(false);
-
-        for (int i = 0; i < threadCount; i++)
+        Parallel.For(0, taskCount, i =>
         {
-            pool.SubmitTask(() =>
+            tasks[i] = pool.SubmitTask(() => i);
+        });
+
+        for (int i = 0; i < taskCount; i++)
+        {
+            Assert.That(tasks[i].Result, Is.EqualTo(i));
+        }
+
+        pool.Shutdown();
+    }
+    
+    [Test]
+    public void ConcurrentResultAccessTest()
+    {
+        var pool = new MyThreadPool(2);
+        var task = pool.SubmitTask(() =>
+        {
+            Thread.Sleep(200);
+            return 123;
+        });
+
+        int concurrentAccessCount = 10;
+        int[] results = new int[concurrentAccessCount];
+        Thread[] threads = new Thread[concurrentAccessCount];
+
+        for (int i = 0; i < concurrentAccessCount; i++)
+        {
+            int localIndex = i; 
+            threads[i] = new Thread(() =>
             {
-                Interlocked.Increment(ref runningThreads);
-                resetEvent.WaitOne(); 
-                Interlocked.Decrement(ref runningThreads);
-                return true;
+                results[localIndex] = task.Result;
             });
+            threads[i].Start();
+        }
+
+        foreach (var t in threads)
+        {
+            t.Join();
+        }
+
+        for (int i = 0; i < concurrentAccessCount; i++)
+        {
+            Assert.That(results[i], Is.EqualTo(123));
+        }
+
+        pool.Shutdown();
+    }
+    
+    [Test]
+    public void ConcurrentSubmitTaskTest()
+    {
+        const int taskCount = 50;
+        const int threadCount = 4;
+        var pool = new MyThreadPool(threadCount);
+        var tasks = new IMyTask<int>[taskCount];
+        var threads = new Thread[taskCount];
+        
+        for (int i = 0; i < taskCount; i++)
+        {
+            int localIndex = i; 
+            threads[i] = new Thread(() =>
+            {
+                tasks[localIndex] = pool.SubmitTask(() => localIndex);
+            });
+            threads[i].Start();
         }
         
-        Thread.Sleep(500);
+        foreach (var thread in threads)
+        {
+            thread.Join();
+        }
+        
+        for (int i = 0; i < taskCount; i++)
+        {
+            Assert.That(tasks[i].Result, Is.EqualTo(i), $"Task {i} returned incorrect result.");
+        }
 
-        Assert.That(runningThreads, Is.EqualTo(threadCount));
-        resetEvent.Set();
         pool.Shutdown();
+    }
+    
+    [Test]
+    public void ConcurrentContinueWithAndShutdownTest()
+    {
+        var pool = new MyThreadPool(4);
+        var task = pool.SubmitTask(() =>
+        {
+            Thread.Sleep(100);
+            return 42;
+        });
+
+        const int continuationCount = 20;
+        IMyTask<int>[] continuations = new IMyTask<int>[continuationCount];
+        var results = new int[continuationCount];
+        var exceptions = new Exception[continuationCount];
+        
+        Parallel.For(0, continuationCount, i =>
+        {
+            continuations[i] = task.ContinueWith(x => x + i);
+        });
+        
+        var resultThreads = new Thread[continuationCount];
+        for (int i = 0; i < continuationCount; i++)
+        {
+            int localI = i;
+            resultThreads[i] = new Thread(() =>
+            {
+                try
+                {
+                    results[localI] = continuations[localI].Result;
+                }
+                catch (Exception ex)
+                {
+                    exceptions[localI] = ex;
+                }
+            });
+            resultThreads[i].Start();
+        }
+        
+        Thread.Sleep(200);
+        
+        Thread shutdownThread = new Thread(() => pool.Shutdown());
+        shutdownThread.Start();
+        shutdownThread.Join();
+        
+        foreach (var thread in resultThreads)
+        {
+            thread.Join();
+        }
+        
+        for (int i = 0; i < continuationCount; i++)
+        {
+            if (exceptions[i] == null)
+            {
+                Assert.That(results[i], Is.EqualTo(42 + i));
+            }
+            else
+            {
+                Assert.That(exceptions[i], Is.TypeOf<AggregateException>()
+                    .With.InnerException.TypeOf<OperationCanceledException>());
+            }
+        }
     }
 }

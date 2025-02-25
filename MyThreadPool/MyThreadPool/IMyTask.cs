@@ -1,4 +1,9 @@
+// <copyright file="IMyTask.c" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
+
 namespace MyThreadPool;
+
 /// <summary>
 /// Represents a task that can be executed by the thread pool.
 /// </summary>
@@ -14,7 +19,7 @@ public interface IMyTask<TResult>
     /// Gets the result of the task. Blocks if the task has not yet completed.
     /// </summary>
     /// <exception cref="AggregateException">Thrown if the task completed with an exception.</exception>
-    public TResult Result{ get; }
+    public TResult Result { get; }
     
     /// <summary>
     /// Creates a continuation task that will be started after this task completes.
