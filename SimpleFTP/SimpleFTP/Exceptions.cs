@@ -1,3 +1,7 @@
+// <copyright file="Exceptions.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
+
 namespace SimpleFTP;
 
 /// <summary>
